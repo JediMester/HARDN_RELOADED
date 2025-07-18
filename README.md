@@ -1,61 +1,28 @@
 
-
-<p align="center">
-  <img src="https://img.shields.io/badge/OS: Debian Systems-red?style=for-the-badge&labelColor=grey" alt="OS: DEBIAN 12"><br><br>
-</p>
-
-<p align="center">
-  <img src="https://github.com/OpenSource-For-Freedom/HARDN-XDR/blob/main/docs/assets/HARDN%20(1).png" /><br><br>
-  <img src="https://img.shields.io/badge/The_Linux_Security_Project-red?style=for-the-badge&labelColor=black" alt="The Linux Security Project"><br><br>
-  <code>HARDN-XDR</code>
-</p>
+## IMPORTANT NOTE
+This is a fork of the original project: https://github.com/subhaniminhas/HARDN1.0
+Huge kudos for Tim Burns and Christopher Bingham for their amazing and invaluable work, and also for Razvan Alexandru Ionica for spreading the word around! :) <3
+Please, make sure to check it out ;)
 
 
-<p align="center">
-  <img src="https://img.shields.io/endpoint?label=Views&url=https://opensource-for-freedom.github.io/HARDN-XDR/traffic-views.json" alt="Repository Views" />
-  <img src="https://img.shields.io/endpoint?label=Clones&url=https://opensource-for-freedom.github.io/HARDN-XDR/traffic-clones.json" alt="Repository Clones" />
-</p>
-
-
-<br>
-<br>
-<p align="center">
-  <img src="https://img.shields.io/badge/OVERVIEW-white?style=for-the-badge&labelColor=black" alt="OVERVIEW"><br><br>
-</p>
-
-
-## HARDN-XDR
-- **Our Goal**: 
-  - Assist the open source community in building a Debian based **"GOLDEN IMAGE"** System.
-- **Our Purpose**: 
-  - To empower IT administrators and users with the tools they need to ensure endpoint security, optimize performance, and maintain compliance across their organization.
-- **What we have to offer**:
+## HARDN_RELOADED
+**The goal and purpose**: 
+Beside all the great security features the original project has to offer, the aim is to make the tool available to a wide range of distros - with that a broader range of audience.
+I would like to make sure that the tool works on as many Linux systems as possible in a modularised way, distinguishing desktops from servers/VMs and providing tailored solutions for both worlds.
+**It provides** (as stated in the original project's README):
   - A robust and secure endpoint management solution designed to simplify and enhance the management of devices in your network. 
   - Advanced features for monitoring, securing, and maintaining endpoints efficiently.
   - `STIG` COMPLIANCE to align with the [Security Technical Information Guides](https://public.cyber.mil/stigs/) provided by the [DOD Cyber Exchange](https://public.cyber.mil/).
 
 
-<br>
-<br>
-<p align="center">
-  <img src="https://img.shields.io/badge/FEATURES-white?style=for-the-badge&labelColor=black" alt="FEATURES"><br><br>
-</p>
+**Main features** (as stated in the original project's README):
 
-- **Comprehensive Monitoring**: Real-time insights into endpoint performance and activity.
-- **Enhanced Security**: Protect endpoints with advanced security protocols.
-- **Scalability**: Manage endpoints across small to large-scale networks.
-- **User-Friendly Interface**: Intuitive design for seamless navigation and management.
-- **STIG Compliance**: This release brings the utmost security for Debian Government based information systems. 
+**Comprehensive Monitoring**: Real-time insights into endpoint performance and activity.
+**Enhanced Security**: Protect endpoints with advanced security protocols.
+**Scalability**: Manage endpoints across small to large-scale networks.
+**User-Friendly Interface**: Intuitive design for seamless navigation and management.
+**STIG Compliance**: This release brings the utmost security for Debian Government based information systems. 
 
-
-<br>
-<br>
-<p align="center">
-  <img src="https://img.shields.io/badge/INSTALLATION-white?style=for-the-badge&labelColor=black" alt="INSTALLATION"><br><br>
-</p>
-
-
-## Quick Start: 
 
 ### Installation
 
@@ -118,29 +85,13 @@ HARDN-XDR/
 
 <br>
 
-<p align="center">
-  <img src="https://img.shields.io/badge/PROJECT PARTNERS-white?style=for-the-badge&labelColor=black" alt="PROJECT PARTNERS"><br><br>
-</p>
-
-
-<p align="center">
-  <img src="docs/assets/cybersynapse.png" alt="cybersynapse Logo" />
-</p>
-
-<br>
-
-<p align="center">
-  <img src="https://img.shields.io/badge/LICENSE-white?style=for-the-badge&labelColor=black" alt="LICENSE"><br><br>
-This project is licensed under the MIT License.
-  
-</p>
-
-<br>
-
-<p align="center">
-  <img src="https://img.shields.io/badge/CONTACT-white?style=for-the-badge&labelColor=black" alt="CONTACT"><br><br>
+**Partner of the original project:**
 office@cybersynapse.ro
-</p>
+
+<br>
+
+This project is licensed under the MIT License.
+
 
 
 
