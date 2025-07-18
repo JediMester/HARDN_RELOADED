@@ -18,9 +18,9 @@ I would like to make sure that the tool works on as many Linux systems as possib
   - `STIG` COMPLIANCE to align with the [Security Technical Information Guides](https://public.cyber.mil/stigs/) provided by the [DOD Cyber Exchange](https://public.cyber.mil/).
 
 <br>
-**Main features**:
+**Main features** (as stated in the original project's README):
 <br>
-(as stated in the original project's README)
+
 
 - **Comprehensive Monitoring**: Real-time insights into endpoint performance and activity.
 - **Enhanced Security**: Protect endpoints with advanced security protocols.
