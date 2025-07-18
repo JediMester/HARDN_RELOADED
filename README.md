@@ -1,20 +1,23 @@
 
 ## IMPORTANT NOTE
 This is a fork of the original project: https://github.com/subhaniminhas/HARDN1.0
+<br>
 Huge kudos for Tim Burns and Christopher Bingham for their amazing and invaluable work, and also for Razvan Alexandru Ionica for spreading the word around! :) <3
 Please, make sure to check it out ;)
-
+<br>
 
 ## HARDN_RELOADED
-**The goal and purpose**: 
+**The goal and purpose**:
+<br>
 Beside all the great security features the original project has to offer, the aim is to make the tool available to a wide range of distros - with that a broader range of audience.
 I would like to make sure that the tool works on as many Linux systems as possible in a modularised way, distinguishing desktops from servers/VMs and providing tailored solutions for both worlds.
+<br>
 **It provides** (as stated in the original project's README):
   - A robust and secure endpoint management solution designed to simplify and enhance the management of devices in your network. 
   - Advanced features for monitoring, securing, and maintaining endpoints efficiently.
   - `STIG` COMPLIANCE to align with the [Security Technical Information Guides](https://public.cyber.mil/stigs/) provided by the [DOD Cyber Exchange](https://public.cyber.mil/).
 
-
+<br>
 **Main features** (as stated in the original project's README):
 
 **Comprehensive Monitoring**: Real-time insights into endpoint performance and activity.
