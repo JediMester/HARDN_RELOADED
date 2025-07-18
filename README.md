@@ -19,13 +19,14 @@ I would like to make sure that the tool works on as many Linux systems as possib
 
 <br>
 **Main features**:
+<br>
 (as stated in the original project's README)
 
-**Comprehensive Monitoring**: Real-time insights into endpoint performance and activity.
-**Enhanced Security**: Protect endpoints with advanced security protocols.
-**Scalability**: Manage endpoints across small to large-scale networks.
-**User-Friendly Interface**: Intuitive design for seamless navigation and management.
-**STIG Compliance**: This release brings the utmost security for Debian Government based information systems. 
+- **Comprehensive Monitoring**: Real-time insights into endpoint performance and activity.
+- **Enhanced Security**: Protect endpoints with advanced security protocols.
+- **Scalability**: Manage endpoints across small to large-scale networks.
+- **User-Friendly Interface**: Intuitive design for seamless navigation and management.
+- **STIG Compliance**: This release brings the utmost security for Debian Government based information systems. 
 
 
 ### Installation
