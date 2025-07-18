@@ -17,7 +17,7 @@ I would like to make sure that the tool works on as many Linux systems as possib
   - Advanced features for monitoring, securing, and maintaining endpoints efficiently.
   - `STIG` COMPLIANCE to align with the [Security Technical Information Guides](https://public.cyber.mil/stigs/) provided by the [DOD Cyber Exchange](https://public.cyber.mil/).
 
-<br>
+
 **Main features** (as stated in the original project's README):
 <br>
 
@@ -39,18 +39,14 @@ I would like to make sure that the tool works on as many Linux systems as possib
 
 <br>
 
-### Installation Notes
-- HARDN-XDR is currently being developed and tested for **BARE-METAL installs of Debian based distributions and Virtual Machines**.
-- Ensure you have the latest version of **Debian 12**.
-- By installing HARDN-XDR with the command listed in the installation, the following changes will be made to your system:
+### Notes regarding the installation
+- HARDN_RELOADED is currently being developed and tested for **BARE-METAL installs of Arch-based and RPM-based - Fedora & openSUSE - distributions and Virtual Machines**.
+- By installing the tool with the command listed in the installation, the following changes will be made to your system:
 > - A collection of security focused packages will be installed.
 > - Security tools and services will be enabled.
 > - System hardening and STIG settings will be applied.
 > - A malware and signature detection and response system will be set up.
-> - A monitoring and reporting system will be activated. 
-- For a detailed list of all that will be changed, please refer to [HARDN.md](docs/HARDN.md).
-- For an overview of HARDN-Debian STIG Compliance, please refer to [deb_stig.md](docs/deb_stig.md).
-
+> - A monitoring and reporting system will be activated.
 
 
 <br>
