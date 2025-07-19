@@ -6,7 +6,7 @@ Huge kudos for Tim Burns and Christopher Bingham for their amazing and invaluabl
 Please, make sure to check it out ;)
 <br>
 
-## HARDN_RELOADED
+## HARDN_RELOADED - WIP
 **The goal and purpose**:
 <br>
 Beside all the great security features the original project has to offer, the aim is to make the tool available to a wide range of distros - with that a broader range of audience.
