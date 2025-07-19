@@ -63,7 +63,7 @@ check_git() {
                 zypper)
                 zypper install git -y;;
                 pacman)
-                pacman -S git -y;;
+                pacman -Sy git;;
            esac
            printf "${YEL}Git is now installed.${NC}"
         fi
