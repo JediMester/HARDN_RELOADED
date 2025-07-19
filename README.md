@@ -34,7 +34,7 @@ I would like to make sure that the tool works on as many Linux systems as possib
 1.  **One command**
 
     ```bash
-    curl -LO https://raw.githubusercontent.com/opensource-for-freedom/HARDN-XDR/refs/heads/main/install.sh && sudo chmod +x install.sh && sudo ./install.sh
+    curl -LO https://github.com/JediMester/HARDN_RELOADED/blob/arch-rpm-port/install.sh && sudo chmod +x install.sh && sudo ./install.sh
     ```
 
 <br>
