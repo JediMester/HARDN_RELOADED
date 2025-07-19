@@ -16,6 +16,8 @@ I would like to make sure that the tool works on as many Linux systems as possib
   - A robust and secure endpoint management solution designed to simplify and enhance the management of devices in your network. 
   - Advanced features for monitoring, securing, and maintaining endpoints efficiently.
   - `STIG` COMPLIANCE to align with the [Security Technical Information Guides](https://public.cyber.mil/stigs/) provided by the [DOD Cyber Exchange](https://public.cyber.mil/).
+  - Rollback capability.
+  - 4 different presets based on your needs and use cases.
 
 
 **Main features** (as stated in the original project's README):
@@ -26,7 +28,7 @@ I would like to make sure that the tool works on as many Linux systems as possib
 - **Enhanced Security**: Protect endpoints with advanced security protocols.
 - **Scalability**: Manage endpoints across small to large-scale networks.
 - **User-Friendly Interface**: Intuitive design for seamless navigation and management.
-- **STIG Compliance**: This release brings the utmost security for Debian Government based information systems. 
+- **STIG Compliance**: This release brings the utmost security for Debian Government based information systems, as well as personal - Devian-, Arch-, and RPM-based - systems. 
 
 
 ### Installation
