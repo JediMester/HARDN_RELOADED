@@ -12,7 +12,7 @@ Please, make sure to check it out ;)
 Beside all the great security features the original project has to offer, the aim is to make the tool available to a wide range of distros - with that a broader range of audience.
 I would like to make sure that the tool works on as many Linux systems as possible in a modularised way, distinguishing desktops from servers/VMs and providing tailored solutions for both worlds.
 <br>
-**It provides** (as stated in the original project's README):
+**It provides** (as stated in the original project's README and also some extra things):
   - A robust and secure endpoint management solution designed to simplify and enhance the management of devices in your network. 
   - Advanced features for monitoring, securing, and maintaining endpoints efficiently.
   - `STIG` COMPLIANCE to align with the [Security Technical Information Guides](https://public.cyber.mil/stigs/) provided by the [DOD Cyber Exchange](https://public.cyber.mil/).
@@ -20,7 +20,7 @@ I would like to make sure that the tool works on as many Linux systems as possib
   - 4 different presets based on your needs and use cases.
 
 
-**Main features** (as stated in the original project's README):
+**Main features** (as stated in the original project's README and also some extra things):
 <br>
 
 
