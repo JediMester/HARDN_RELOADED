@@ -131,9 +131,11 @@ EOF
 
     # Load rules now (non-fatal if augenrules is unavailable)
     if command -v augenrules &>/dev/null; then
-        augenrules --load &>/dev/null && STATUS_OK "Audit rules loaded via augenrules."
+        augenrules --load &>/dev/null || true
+        STATUS_OK "Audit rules loaded via augenrules."
     else
-        auditctl -R "$rules_file" &>/dev/null && STATUS_OK "Audit rules loaded via auditctl."
+        auditctl -R "$rules_file" &>/dev/null || true
+        STATUS_OK "Audit rules loaded via auditctl."
     fi
 
     systemctl restart auditd 2>/dev/null || true

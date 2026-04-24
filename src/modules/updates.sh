@@ -66,7 +66,7 @@ _setup_updates_debian() {
     local origin_debian='o=Debian,a=stable,l=Debian-Security";'
     local origin_ubuntu='o=Ubuntu,a=${distro_codename}-security";'
     local origins="$origin_debian"
-    grep -qi ubuntu /etc/os-release 2>/dev/null && origins="$origin_ubuntu"
+    grep -qi ubuntu /etc/os-release 2>/dev/null && origins="$origin_ubuntu" || true
 
     cat > /etc/apt/apt.conf.d/50hardn-unattended-upgrades <<EOF
 Unattended-Upgrade::Allowed-Origins {

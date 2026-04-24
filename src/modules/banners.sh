@@ -6,7 +6,8 @@ setup_banners() {
     STATUS_STEP "STIG login banners"
 
     local banner_text
-    read -r -d '' banner_text <<'BANNER'
+    # read -d '' exits non-zero on EOF (no null byte) — absorb with || true
+    read -r -d '' banner_text <<'BANNER' || true
 ╔══════════════════════════════════════════════════════════════════╗
 ║                    AUTHORISED ACCESS ONLY                        ║
 ╠══════════════════════════════════════════════════════════════════╣

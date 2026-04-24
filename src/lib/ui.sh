@@ -194,7 +194,8 @@ select_modules() {
     local choices
     choices=$(ui_checklist \
         "HARDN RELOADED — Module Selection" \
-        "Toggle individual modules. Profile defaults are pre-selected:" \
+        "Space = toggle  |  Tab = move to OK/Cancel  |  Enter = confirm
+Toggle individual modules (profile defaults are pre-selected):" \
         "kernel"    "Kernel / sysctl hardening"            "$(_s OPT_KERNEL_HARDEN)" \
         "modules_bl" "Kernel module blacklisting"          "$(_s OPT_MODULE_BLACKLIST)" \
         "firewall"  "Firewall (firewalld)"                 "$(_s OPT_FIREWALL)" \

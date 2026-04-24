@@ -52,7 +52,18 @@ EOF
 _setup_suricata() {
     [[ "${OPT_SURICATA:-1}" -eq 0 ]] && { STATUS_SKIP "Suricata"; return; }
 
-    install_pkg $PKG_SURICATA
+    # On Arch, Suricata is AUR-only; on Debian/RPM it is in the official repos
+    if [[ "${PKG_SURICATA_AUR:-0}" -eq 1 ]]; then
+        if [[ -z "$AUR_HELPER" ]]; then
+            STATUS_WARN "Suricata is AUR-only on Arch and no AUR helper (yay/paru) was found."
+            STATUS_WARN "Install yay or paru, then re-run to add Suricata."
+            STATUS_WARN "Skipping Suricata — all other modules will continue."
+            return
+        fi
+        install_aur_pkg "$PKG_SURICATA"
+    else
+        install_pkg "$PKG_SURICATA"
+    fi
 
     # Detect primary external interface
     local iface
@@ -69,7 +80,8 @@ _setup_suricata() {
 
     # Update rules (suricata-update or suricata --update-sources)
     if command -v suricata-update &>/dev/null; then
-        suricata-update &>/dev/null && STATUS_MSG "Suricata rules updated."
+        suricata-update &>/dev/null || true
+        STATUS_MSG "Suricata rules updated."
     fi
 
     systemctl enable --now suricata

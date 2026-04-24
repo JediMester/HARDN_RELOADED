@@ -16,7 +16,9 @@ detect_os() {
     source /etc/os-release
 
     DISTRO_ID="${ID,,}"
-    DISTRO_LIKE="${ID_LIKE,,}"
+    # ID_LIKE is optional in os-release (Arch does not set it)
+    local _id_like="${ID_LIKE:-}"
+    DISTRO_LIKE="${_id_like,,}"
     DISTRO_VERSION="${VERSION_ID:-unknown}"
     DISTRO_PRETTY="${PRETTY_NAME:-$ID}"
 

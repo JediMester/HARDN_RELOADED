@@ -45,7 +45,7 @@ _firejail_wrap_app() {
     # Find existing .desktop file
     local desktop_src
     desktop_src=$(find /usr/share/applications /usr/local/share/applications \
-        -name "${app}.desktop" 2>/dev/null | head -1)
+        -name "${app}.desktop" 2>/dev/null | head -1) || true
 
     if [[ -z "$desktop_src" ]]; then
         STATUS_WARN "No .desktop file found for $app — creating wrapper symlink only."
@@ -94,7 +94,7 @@ _firejail_wrap_steam() {
 
     # .desktop override
     local steam_desktop
-    steam_desktop=$(find /usr/share/applications -name "steam*.desktop" 2>/dev/null | head -1)
+    steam_desktop=$(find /usr/share/applications -name "steam*.desktop" 2>/dev/null | head -1) || true
     if [[ -n "$steam_desktop" ]]; then
         mkdir -p /usr/local/share/applications
         local dst="/usr/local/share/applications/$(basename "$steam_desktop")"

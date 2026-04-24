@@ -37,10 +37,10 @@ setup_services() {
     fi
 
     # ── mDNS / Avahi ────────────────────────────────────────────────────────
+    # Only disable the daemon — avahi is a required dependency of cups, pipewire-pulse,
+    # ostree and others on desktop systems, so removing the package would break them.
     if [[ "${OPT_DISABLE_AVAHI:-1}" -eq 1 ]]; then
         _disable_svc avahi-daemon
-        _remove_pkg avahi
-        _remove_pkg avahi-daemon
     fi
 
     # ── Bluetooth ────────────────────────────────────────────────────────────
