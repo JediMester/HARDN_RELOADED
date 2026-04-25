@@ -1,0 +1,517 @@
+#!/usr/bin/env python3
+"""
+hardn-tui — HARDN RELOADED Security Dashboard
+
+A live TUI overview of all security tools installed by HARDN RELOADED.
+
+Usage:
+  sudo hardn-tui
+
+Requires: python-textual
+  Arch:    sudo pacman -S python-textual
+  Debian:  sudo apt install python3-textual   # or: pip install textual
+  RPM:     pip install textual
+
+Keys:  r — refresh   q — quit
+"""
+from __future__ import annotations
+
+import json
+import os
+import re
+import subprocess
+import sys
+from datetime import datetime
+from pathlib import Path
+
+# ── Dependency guard ──────────────────────────────────────────────────────────
+try:
+    from textual.app import App, ComposeResult
+    from textual.binding import Binding
+    from textual.containers import Horizontal, Vertical, ScrollableContainer
+    from textual.widgets import Header, Footer, Static, DataTable, RichLog
+    from textual import work
+    from rich.text import Text
+except ImportError:
+    print(
+        "textual is not installed.\n\n"
+        "Install it with:\n"
+        "  Arch:    sudo pacman -S python-textual\n"
+        "  Debian:  sudo apt install python3-textual\n"
+        "  RPM:     pip install textual",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+
+VERSION = "3.0.0"
+REFRESH_SECS = 30
+
+# ── Shell helper ──────────────────────────────────────────────────────────────
+
+def _sh(cmd: list[str], timeout: int = 10) -> str:
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        return r.stdout.strip()
+    except Exception:
+        return ""
+
+# ── Data collectors ───────────────────────────────────────────────────────────
+
+def _svc_state(name: str) -> tuple[str, str]:
+    s = _sh(["systemctl", "is-active", name])
+    if s == "active":
+        return "● active", "green"
+    if s == "failed":
+        return "✗ failed", "red"
+    if s == "inactive":
+        return "○ inactive", "yellow"
+    if s == "activating":
+        return "◌ starting", "cyan"
+    return "– unknown", "dim"
+
+
+# (systemd-service-name, display-label)
+# clamav-daemon covers Arch + Debian; clamd covers some RPM setups
+SERVICES = [
+    ("auditd",        "auditd"),
+    ("fail2ban",      "fail2ban"),
+    ("suricata",      "suricata"),
+    ("clamav-daemon", "clamav"),
+    ("clamd",         "clamav"),        # RPM fallback — skipped if clamav already found
+    ("firewalld",     "firewalld"),
+    ("rsyslog",       "rsyslog"),
+    ("sysstat",       "sysstat"),
+]
+
+
+def fetch_services() -> list[tuple[str, str, str]]:
+    rows: list[tuple[str, str, str]] = []
+    seen_labels: set[str] = set()
+    for svc, label in SERVICES:
+        if label in seen_labels:
+            continue
+        state, color = _svc_state(svc)
+        rows.append((label, state, color))
+        if "unknown" not in state:
+            seen_labels.add(label)
+    return rows
+
+
+def fetch_fail2ban() -> tuple[list[tuple[str, int]], list[str]]:
+    out = _sh(["fail2ban-client", "status"])
+    if not out:
+        return [], ["fail2ban-client unavailable"]
+
+    jails_line = next((l for l in out.splitlines() if "Jail list:" in l), "")
+    jails = [j.strip() for j in jails_line.split(":")[-1].split(",") if j.strip()]
+
+    jail_rows: list[tuple[str, int]] = []
+    all_banned: list[str] = []
+
+    for jail in jails:
+        j_out = _sh(["fail2ban-client", "status", jail])
+        count = 0
+        for line in j_out.splitlines():
+            if "Currently banned:" in line:
+                try:
+                    count = int(line.split(":")[-1].strip())
+                except ValueError:
+                    pass
+            if "Banned IP list:" in line:
+                ips = line.split(":")[-1].strip()
+                for ip in ips.split():
+                    all_banned.append(f"[yellow]{jail}[/yellow] {ip}")
+        jail_rows.append((jail, count))
+
+    if not all_banned:
+        all_banned = ["[green]No currently banned IPs[/green]"]
+    return jail_rows, all_banned
+
+
+def fetch_clamav() -> str:
+    for p in map(Path, [
+        "/var/log/clamav/clamscan.log",
+        "/var/log/clamav/scan.log",
+    ]):
+        if not p.exists():
+            continue
+        try:
+            text = p.read_text(errors="replace")
+            blocks = re.split(r"-{5,}\s*SCAN SUMMARY\s*-{5,}", text)
+            if len(blocks) < 2:
+                continue
+            b = blocks[-1]
+            scanned  = re.search(r"Scanned files:\s*([\d,]+)", b)
+            infected = re.search(r"Infected files:\s*([\d,]+)", b)
+            etime    = re.search(r"Time:\s*(.+)", b)
+            sc  = scanned.group(1)  if scanned  else "?"
+            inf = infected.group(1) if infected else "?"
+            et  = etime.group(1).strip() if etime else "?"
+            inf_n = int(inf.replace(",", "")) if inf != "?" else 0
+            c = "red" if inf_n > 0 else "green"
+            return f"Scanned [cyan]{sc}[/cyan]  Infected [{c}]{inf}[/{c}]  ({et})"
+        except Exception:
+            pass
+    return "[dim]No scan log found[/dim]"
+
+
+def fetch_rkhunter() -> str:
+    p = Path("/var/log/rkhunter.log")
+    if not p.exists():
+        return "[dim]No log found[/dim]"
+    try:
+        text = p.read_text(errors="replace")
+        warnings = len(re.findall(r"^\s*Warning:", text, re.M))
+        mtime = datetime.fromtimestamp(p.stat().st_mtime).strftime("%Y-%m-%d %H:%M")
+        c = "red" if warnings > 0 else "green"
+        return f"Warnings: [{c}]{warnings}[/{c}]  (log updated {mtime})"
+    except Exception:
+        return "[dim]Parse error[/dim]"
+
+
+def fetch_aide() -> str:
+    for p in map(Path, ["/var/log/aide/aide.log", "/var/log/aide.log"]):
+        if not p.exists():
+            continue
+        try:
+            text = p.read_text(errors="replace")
+            added = changed = removed = 0
+            for line in text.splitlines():
+                m = re.match(r"\s*Added entries:\s*(\d+)", line, re.I)
+                if m:
+                    added = int(m.group(1))
+                m = re.match(r"\s*Changed entries:\s*(\d+)", line, re.I)
+                if m:
+                    changed = int(m.group(1))
+                m = re.match(r"\s*Removed entries:\s*(\d+)", line, re.I)
+                if m:
+                    removed = int(m.group(1))
+            total = added + changed + removed
+            c = "red" if total > 0 else "green"
+            mtime = datetime.fromtimestamp(p.stat().st_mtime).strftime("%Y-%m-%d %H:%M")
+            return (
+                f"Changed [{c}]{changed}[/{c}]  "
+                f"Added {added}  Removed {removed}  "
+                f"(log updated {mtime})"
+            )
+        except Exception:
+            pass
+    return "[dim]No log found[/dim]"
+
+
+def fetch_suricata() -> str:
+    for p in map(Path, ["/var/log/suricata/fast.log", "/var/log/suricata/eve.json"]):
+        if not p.exists():
+            continue
+        try:
+            text = p.read_text(errors="replace")
+            if p.suffix == ".json":
+                count = 0
+                for line in text.splitlines():
+                    try:
+                        if json.loads(line).get("event_type") == "alert":
+                            count += 1
+                    except Exception:
+                        pass
+                c = "red" if count > 0 else "green"
+                mtime = datetime.fromtimestamp(p.stat().st_mtime).strftime("%Y-%m-%d %H:%M")
+                return f"Alerts today: [{c}]{count}[/{c}]  (log updated {mtime})"
+            else:
+                lines = [l for l in text.splitlines() if "[**]" in l]
+                c = "red" if lines else "green"
+                return f"Alert lines: [{c}]{len(lines)}[/{c}]"
+        except Exception:
+            pass
+    return "[dim]No log found[/dim]"
+
+
+def fetch_audit_events() -> list[str]:
+    out = _sh(["ausearch", "-ts", "today", "-i", "--format", "text"], timeout=20)
+    if out:
+        lines = [l for l in out.splitlines() if l.strip() and not l.startswith("----")]
+        return lines[-60:]
+    p = Path("/var/log/audit/audit.log")
+    if p.exists():
+        try:
+            return p.read_text(errors="replace").splitlines()[-60:]
+        except PermissionError:
+            return ["[yellow]Run as root for audit log access[/yellow]"]
+    return ["[dim]No audit log found (/var/log/audit/audit.log)[/dim]"]
+
+
+def fetch_suricata_events() -> list[str]:
+    for p in map(Path, ["/var/log/suricata/fast.log", "/var/log/suricata/eve.json"]):
+        if not p.exists():
+            continue
+        try:
+            text = p.read_text(errors="replace")
+            if p.suffix == ".json":
+                alerts: list[str] = []
+                for line in reversed(text.splitlines()):
+                    try:
+                        evt = json.loads(line)
+                        if evt.get("event_type") == "alert":
+                            sig = evt.get("alert", {}).get("signature", "?")
+                            src = evt.get("src_ip", "?")
+                            ts  = evt.get("timestamp", "")[:16]
+                            alerts.append(
+                                f"[yellow]{ts}[/yellow] [cyan]{src}[/cyan] {sig}"
+                            )
+                            if len(alerts) >= 30:
+                                break
+                    except Exception:
+                        pass
+                return alerts or ["[green]No recent Suricata alerts[/green]"]
+            else:
+                lines = [l for l in text.splitlines() if "[**]" in l]
+                return lines[-30:] or ["[green]No recent Suricata alerts[/green]"]
+        except Exception:
+            pass
+    return ["[dim]No Suricata log found[/dim]"]
+
+
+# ── Textual App ───────────────────────────────────────────────────────────────
+
+APP_CSS = """
+Screen {
+    background: #0d1117;
+}
+
+#body {
+    height: 1fr;
+    padding: 0 1 0 1;
+}
+
+/* ── row 1: services + fail2ban ── */
+#row1 {
+    height: auto;
+    max-height: 18;
+    margin-bottom: 1;
+}
+
+#services-panel {
+    width: 2fr;
+    margin-right: 1;
+}
+
+#fail2ban-panel {
+    width: 3fr;
+}
+
+/* ── row 2: scan results ── */
+#scans-panel {
+    height: auto;
+    margin-bottom: 1;
+}
+
+/* ── row 3: event log (tabs) ── */
+#events-row {
+    height: 1fr;
+}
+
+#audit-panel {
+    width: 1fr;
+    margin-right: 1;
+}
+
+#suricata-panel {
+    width: 1fr;
+}
+
+/* ── shared panel styling ── */
+.panel {
+    border: round #30363d;
+    background: #161b22;
+    padding: 1 2;
+}
+
+.panel-title {
+    color: #58a6ff;
+    text-style: bold;
+    margin-bottom: 1;
+}
+
+/* ── data table ── */
+DataTable {
+    background: #161b22;
+    height: auto;
+    max-height: 12;
+}
+
+DataTable > .datatable--header {
+    background: #21262d;
+    color: #8b949e;
+    text-style: bold;
+}
+
+DataTable > .datatable--cursor {
+    background: #1f6feb;
+    color: white;
+}
+
+/* ── rich log ── */
+RichLog {
+    background: #0d1117;
+    height: 1fr;
+}
+
+/* ── footer refresh line ── */
+#status-bar {
+    height: 1;
+    color: #484f58;
+    content-align: right middle;
+    padding: 0 1;
+}
+"""
+
+
+class HardnDashboard(App[None]):
+    CSS = APP_CSS
+    TITLE = f"HARDN RELOADED  ·  Security Dashboard  ·  v{VERSION}"
+    BINDINGS = [
+        Binding("r", "refresh_all", "Refresh"),
+        Binding("q", "quit", "Quit"),
+    ]
+
+    # ── Layout ────────────────────────────────────────────────────────────────
+
+    def compose(self) -> ComposeResult:
+        yield Header()
+        yield Vertical(
+            # Row 1 — service status (left) + fail2ban bans (right)
+            Horizontal(
+                Vertical(
+                    Static("[b]SERVICE STATUS[/b]", classes="panel-title"),
+                    DataTable(id="svc-table", show_cursor=False),
+                    id="services-panel",
+                    classes="panel",
+                ),
+                Vertical(
+                    Static("[b]FAIL2BAN — ACTIVE BANS[/b]", classes="panel-title"),
+                    Static("Loading…", id="f2b-content"),
+                    id="fail2ban-panel",
+                    classes="panel",
+                ),
+                id="row1",
+            ),
+            # Row 2 — last scan results (full width)
+            Vertical(
+                Static("[b]LAST SCAN RESULTS[/b]", classes="panel-title"),
+                Static("Loading…", id="scans-content"),
+                id="scans-panel",
+                classes="panel",
+            ),
+            # Row 3 — audit events (left) + suricata alerts (right)
+            Horizontal(
+                Vertical(
+                    Static("[b]RECENT AUDIT EVENTS[/b]", classes="panel-title"),
+                    RichLog(id="audit-log", highlight=True, markup=True),
+                    id="audit-panel",
+                    classes="panel",
+                ),
+                Vertical(
+                    Static("[b]SURICATA ALERTS[/b]", classes="panel-title"),
+                    RichLog(id="suricata-log", highlight=True, markup=True),
+                    id="suricata-panel",
+                    classes="panel",
+                ),
+                id="events-row",
+            ),
+            # Status bar
+            Static("", id="status-bar"),
+            id="body",
+        )
+        yield Footer()
+
+    # ── Init ──────────────────────────────────────────────────────────────────
+
+    def on_mount(self) -> None:
+        table = self.query_one("#svc-table", DataTable)
+        table.add_column("Service", width=20)
+        table.add_column("Status",  width=12)
+        self.action_refresh_all()
+        self.set_interval(REFRESH_SECS, self.action_refresh_all)
+
+    # ── Refresh (background thread — never blocks the UI) ─────────────────────
+
+    @work(exclusive=True, thread=True)
+    def action_refresh_all(self) -> None:
+        self._refresh_services()
+        self._refresh_fail2ban()
+        self._refresh_scans()
+        self._refresh_audit()
+        self._refresh_suricata()
+        self.call_from_thread(
+            self.query_one("#status-bar", Static).update,
+            f"Last refresh: {datetime.now().strftime('%H:%M:%S')}  "
+            f"· auto-refresh every {REFRESH_SECS}s ·  "
+            "[b]r[/b] refresh  [b]q[/b] quit",
+        )
+
+    def _refresh_services(self) -> None:
+        rows = fetch_services()
+        table = self.query_one("#svc-table", DataTable)
+        self.call_from_thread(table.clear)
+        for label, state, color in rows:
+            self.call_from_thread(table.add_row, label, Text(state, style=color))
+
+    def _refresh_fail2ban(self) -> None:
+        jail_rows, banned = fetch_fail2ban()
+        parts: list[str] = []
+        if jail_rows:
+            summary = "  ".join(
+                f"[cyan]{j}[/cyan]:[{'red' if n > 0 else 'green'}]{n}[/{'red' if n > 0 else 'green'}]"
+                for j, n in jail_rows
+            )
+            parts.append(summary)
+            parts.append("")
+        parts.extend(banned)
+        self.call_from_thread(
+            self.query_one("#f2b-content", Static).update,
+            "\n".join(parts),
+        )
+
+    def _refresh_scans(self) -> None:
+        content = (
+            f"[b]ClamAV:[/b]    {fetch_clamav()}\n"
+            f"[b]rkhunter:[/b]  {fetch_rkhunter()}\n"
+            f"[b]AIDE:[/b]      {fetch_aide()}\n"
+            f"[b]Suricata:[/b]  {fetch_suricata()}"
+        )
+        self.call_from_thread(
+            self.query_one("#scans-content", Static).update,
+            content,
+        )
+
+    def _refresh_audit(self) -> None:
+        log = self.query_one("#audit-log", RichLog)
+        self.call_from_thread(log.clear)
+        for line in fetch_audit_events():
+            self.call_from_thread(log.write, line)
+
+    def _refresh_suricata(self) -> None:
+        log = self.query_one("#suricata-log", RichLog)
+        self.call_from_thread(log.clear)
+        for line in fetch_suricata_events():
+            self.call_from_thread(log.write, line)
+
+
+# ── Entry point ───────────────────────────────────────────────────────────────
+
+def main() -> None:
+    if "--help" in sys.argv or "-h" in sys.argv:
+        print(__doc__)
+        sys.exit(0)
+
+    if os.geteuid() != 0:
+        print(
+            "Warning: not running as root — audit logs and some service data\n"
+            "may be inaccessible. Run with: sudo hardn-tui",
+            file=sys.stderr,
+        )
+
+    HardnDashboard().run()
+
+
+if __name__ == "__main__":
+    main()

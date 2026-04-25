@@ -212,13 +212,14 @@ Toggle individual modules (profile defaults are pre-selected):" \
         "services"  "Disable unnecessary services"         "$(_s OPT_DISABLE_SERVICES)" \
         "firejail"  "Firejail sandboxing"                  "$(_s OPT_FIREJAIL)" \
         "banners"   "STIG login banners"                   "$(_s OPT_BANNERS)" \
+        "tui"       "hardn-tui security dashboard"         "$(_s OPT_HARDN_TUI)" \
     )
 
     # Reset all OPT_ flags then re-enable selected ones
     for flag in OPT_KERNEL_HARDEN OPT_MODULE_BLACKLIST OPT_FIREWALL OPT_DFR_FWD \
                 OPT_SSH_HARDEN OPT_PAM_PWQUALITY OPT_AUDITD OPT_IDS OPT_MALWARE \
                 OPT_INTEGRITY OPT_LOGGING OPT_AUTO_UPDATES OPT_DNS \
-                OPT_DISABLE_SERVICES OPT_FIREJAIL OPT_BANNERS; do
+                OPT_DISABLE_SERVICES OPT_FIREJAIL OPT_BANNERS OPT_HARDN_TUI; do
         export "$flag"=0
     done
 
@@ -241,11 +242,12 @@ Toggle individual modules (profile defaults are pre-selected):" \
             services)   OPT_DISABLE_SERVICES=1 ;;
             firejail)   OPT_FIREJAIL=1 ;;
             banners)    OPT_BANNERS=1 ;;
+            tui)        OPT_HARDN_TUI=1 ;;
         esac
     done
 
     export OPT_KERNEL_HARDEN OPT_MODULE_BLACKLIST OPT_FIREWALL OPT_DFR_FWD \
            OPT_SSH_HARDEN OPT_PAM_PWQUALITY OPT_AUDITD OPT_IDS OPT_MALWARE \
            OPT_INTEGRITY OPT_LOGGING OPT_AUTO_UPDATES OPT_DNS \
-           OPT_DISABLE_SERVICES OPT_FIREJAIL OPT_BANNERS
+           OPT_DISABLE_SERVICES OPT_FIREJAIL OPT_BANNERS OPT_HARDN_TUI
 }

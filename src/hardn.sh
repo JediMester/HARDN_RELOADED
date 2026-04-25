@@ -130,6 +130,7 @@ if [[ "$ARG_NO_CONFIRM" -eq 0 ]]; then
     [[ "${OPT_DISABLE_SERVICES:-0}" -eq 1 ]] && summary+="\n  ✓ Disable unnecessary services"
     [[ "${OPT_FIREJAIL:-0}"         -eq 1 ]] && summary+="\n  ✓ Firejail sandboxing"
     [[ "${OPT_BANNERS:-0}"          -eq 1 ]] && summary+="\n  ✓ STIG login banners"
+    [[ "${OPT_HARDN_TUI:-0}"        -eq 1 ]] && summary+="\n  ✓ hardn-tui security dashboard"
     summary+="\n\nThis will modify system configuration. Continue?"
 
     if ! ui_yesno "Confirm Hardening" "$summary"; then
@@ -166,6 +167,7 @@ setup_dns
 setup_services
 setup_firejail
 setup_banners
+setup_tui
 
 # ── Lynis audit (post-hardening report) ──────────────────────────────────────
 if [[ "${OPT_LYNIS:-1}" -eq 1 ]]; then
