@@ -76,14 +76,15 @@ def _svc_state(name: str) -> tuple[str, str]:
 # (systemd-service-name, display-label)
 # clamav-daemon covers Arch + Debian; clamd covers some RPM setups
 SERVICES = [
-    ("auditd",        "auditd"),
-    ("fail2ban",      "fail2ban"),
-    ("suricata",      "suricata"),
-    ("clamav-daemon", "clamav"),
-    ("clamd",         "clamav"),        # RPM fallback — skipped if clamav already found
-    ("firewalld",     "firewalld"),
-    ("rsyslog",       "rsyslog"),
-    ("sysstat",       "sysstat"),
+    ("auditd",                   "auditd"),
+    ("fail2ban",                 "fail2ban"),
+    ("suricata",                 "suricata"),
+    ("clamav-daemon",            "clamav"),
+    ("clamd",                    "clamav"),   # RPM fallback — skipped if clamav already found
+    ("firewalld",                "firewalld"),
+    ("dynamic_firewalld_rules",  "dfr_fwd"),
+    ("rsyslog",                  "rsyslog"),
+    ("sysstat",                  "sysstat"),
 ]
 
 
@@ -230,6 +231,47 @@ def _safe_json_alert(line: str) -> bool:
         return json.loads(line).get("event_type") == "alert"
     except Exception:
         return False
+
+
+def fetch_dfr_blocked() -> list[str]:
+    """Currently blocked IPs in firewalld drop_zone."""
+    out = _sh(["firewall-cmd", "--zone=drop_zone", "--list-sources"])
+    if not out:
+        return ["[green]No currently blocked IPs[/green]"]
+    ips = out.split()
+    header = f"[cyan]{len(ips)} IP(s) currently blocked:[/cyan]"
+    return [header, ""] + [f"  [red]✗[/red] {ip}" for ip in sorted(ips)]
+
+
+def fetch_dfr_events() -> list[str]:
+    """Recent dfr_fwd events from the systemd journal — blocks, unblocks, detections."""
+    out = _sh(
+        ["journalctl", "-u", "dynamic_firewalld_rules",
+         "--no-pager", "-n", "300", "--output", "short"],
+        timeout=10,
+    )
+    if not out:
+        return ["[dim]No journal entries for dynamic_firewalld_rules[/dim]"]
+
+    results: list[str] = []
+    for line in out.splitlines():
+        if "Blocking IP" in line:
+            line = line.replace("Blocking IP", "[red]Blocking IP[/red]")
+        elif "Unblocking IP" in line:
+            line = line.replace("Unblocking IP", "[green]Unblocking IP[/green]")
+        elif "port scan" in line.lower():
+            line = line.replace("TCP port scan", "[yellow]TCP port scan[/yellow]")
+            line = line.replace("UDP port scan", "[yellow]UDP port scan[/yellow]")
+        elif "rate-limiting active" in line or "rate-limit" in line.lower():
+            line = f"[cyan]{line}[/cyan]"
+        elif any(kw in line for kw in ["started", "stopped", "Starting", "Stopping",
+                                        "nftables", "drop zone", "Failed to"]):
+            line = f"[dim]{line}[/dim]"
+        else:
+            continue   # skip uninteresting journal noise
+        results.append(line)
+
+    return results or ["[green]No block/scan events in recent journal[/green]"]
 
 
 def fetch_audit_events() -> list[str]:
@@ -386,6 +428,7 @@ class HardnDashboard(App[None]):
         Binding("1", "switch_tab('tab-overview')",  "Overview",  show=True),
         Binding("2", "switch_tab('tab-audit')",     "Audit Log", show=True),
         Binding("3", "switch_tab('tab-suricata')",  "Suricata",  show=True),
+        Binding("4", "switch_tab('tab-dfr')",       "DFR",       show=True),
         Binding("q", "quit", "Quit"),
     ]
 
@@ -414,6 +457,15 @@ class HardnDashboard(App[None]):
                 # ── Tab 3: Suricata Alerts ───────────────────────────────────
                 with TabPane("3 Suricata", id="tab-suricata"):
                     yield RichLog(id="suricata-log", highlight=True, markup=True)
+                # ── Tab 4: DFR — Dynamic Firewall ────────────────────────────
+                with TabPane("4 DFR", id="tab-dfr"):
+                    with Horizontal():
+                        with Vertical(id="dfr-blocked-panel", classes="panel"):
+                            yield Static("[b]CURRENTLY BLOCKED IPs[/b]", classes="panel-title")
+                            yield RichLog(id="dfr-blocked", highlight=False, markup=True)
+                        with Vertical(id="dfr-events-panel", classes="panel"):
+                            yield Static("[b]RECENT EVENTS (journal)[/b]", classes="panel-title")
+                            yield RichLog(id="dfr-events", highlight=False, markup=True)
             yield Static("", id="status-bar")
         yield Footer()
 
@@ -438,6 +490,7 @@ class HardnDashboard(App[None]):
         self._refresh_scans()
         self._refresh_audit()
         self._refresh_suricata()
+        self._refresh_dfr()
         self.call_from_thread(
             self.query_one("#status-bar", Static).update,
             f"Last refresh: {datetime.now().strftime('%H:%M:%S')}  "
@@ -491,6 +544,16 @@ class HardnDashboard(App[None]):
         self.call_from_thread(log.clear)
         for line in fetch_suricata_events():
             self.call_from_thread(log.write, line)
+
+    def _refresh_dfr(self) -> None:
+        blocked_log = self.query_one("#dfr-blocked", RichLog)
+        events_log  = self.query_one("#dfr-events",  RichLog)
+        self.call_from_thread(blocked_log.clear)
+        self.call_from_thread(events_log.clear)
+        for line in fetch_dfr_blocked():
+            self.call_from_thread(blocked_log.write, line)
+        for line in fetch_dfr_events():
+            self.call_from_thread(events_log.write, line)
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────
