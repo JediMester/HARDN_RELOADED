@@ -12,7 +12,7 @@ Requires: python-textual
   Debian:  sudo apt install python3-textual   # or: pip install textual
   RPM:     pip install textual
 
-Keys:  r — refresh   q — quit
+Keys:  1/2/3 — switch tabs   r — refresh   q — quit
 """
 from __future__ import annotations
 
@@ -28,8 +28,11 @@ from pathlib import Path
 try:
     from textual.app import App, ComposeResult
     from textual.binding import Binding
-    from textual.containers import Horizontal, Vertical, ScrollableContainer
-    from textual.widgets import Header, Footer, Static, DataTable, RichLog
+    from textual.containers import Horizontal, Vertical
+    from textual.widgets import (
+        Header, Footer, Static, DataTable, RichLog,
+        TabbedContent, TabPane,
+    )
     from textual import work
     from rich.text import Text
 except ImportError:
@@ -199,23 +202,20 @@ def fetch_aide() -> str:
     return "[dim]No log found[/dim]"
 
 
-def fetch_suricata() -> str:
+def fetch_suricata_summary() -> str:
     for p in map(Path, ["/var/log/suricata/fast.log", "/var/log/suricata/eve.json"]):
         if not p.exists():
             continue
         try:
             text = p.read_text(errors="replace")
             if p.suffix == ".json":
-                count = 0
-                for line in text.splitlines():
-                    try:
-                        if json.loads(line).get("event_type") == "alert":
-                            count += 1
-                    except Exception:
-                        pass
+                count = sum(
+                    1 for line in text.splitlines()
+                    if _safe_json_alert(line)
+                )
                 c = "red" if count > 0 else "green"
                 mtime = datetime.fromtimestamp(p.stat().st_mtime).strftime("%Y-%m-%d %H:%M")
-                return f"Alerts today: [{c}]{count}[/{c}]  (log updated {mtime})"
+                return f"Alerts: [{c}]{count}[/{c}]  (log updated {mtime})"
             else:
                 lines = [l for l in text.splitlines() if "[**]" in l]
                 c = "red" if lines else "green"
@@ -225,15 +225,22 @@ def fetch_suricata() -> str:
     return "[dim]No log found[/dim]"
 
 
+def _safe_json_alert(line: str) -> bool:
+    try:
+        return json.loads(line).get("event_type") == "alert"
+    except Exception:
+        return False
+
+
 def fetch_audit_events() -> list[str]:
     out = _sh(["ausearch", "-ts", "today", "-i", "--format", "text"], timeout=20)
     if out:
         lines = [l for l in out.splitlines() if l.strip() and not l.startswith("----")]
-        return lines[-60:]
+        return lines[-200:]
     p = Path("/var/log/audit/audit.log")
     if p.exists():
         try:
-            return p.read_text(errors="replace").splitlines()[-60:]
+            return p.read_text(errors="replace").splitlines()[-200:]
         except PermissionError:
             return ["[yellow]Run as root for audit log access[/yellow]"]
     return ["[dim]No audit log found (/var/log/audit/audit.log)[/dim]"]
@@ -257,14 +264,14 @@ def fetch_suricata_events() -> list[str]:
                             alerts.append(
                                 f"[yellow]{ts}[/yellow] [cyan]{src}[/cyan] {sig}"
                             )
-                            if len(alerts) >= 30:
+                            if len(alerts) >= 200:
                                 break
                     except Exception:
                         pass
                 return alerts or ["[green]No recent Suricata alerts[/green]"]
             else:
                 lines = [l for l in text.splitlines() if "[**]" in l]
-                return lines[-30:] or ["[green]No recent Suricata alerts[/green]"]
+                return lines[-200:] or ["[green]No recent Suricata alerts[/green]"]
         except Exception:
             pass
     return ["[dim]No Suricata log found[/dim]"]
@@ -277,12 +284,26 @@ Screen {
     background: #0d1117;
 }
 
-#body {
+/* ── outer shell ── */
+#shell {
     height: 1fr;
     padding: 0 1 0 1;
 }
 
-/* ── row 1: services + fail2ban ── */
+TabbedContent {
+    height: 1fr;
+}
+
+TabPane {
+    padding: 0;
+    height: 1fr;
+}
+
+/* ── overview tab ── */
+#overview-body {
+    height: 1fr;
+}
+
 #row1 {
     height: auto;
     max-height: 18;
@@ -298,31 +319,21 @@ Screen {
     width: 3fr;
 }
 
-/* ── row 2: scan results ── */
 #scans-panel {
     height: auto;
-    margin-bottom: 1;
 }
 
-/* ── row 3: event log (tabs) ── */
-#events-row {
+/* ── log tabs ── */
+#audit-panel, #suricata-panel {
     height: 1fr;
 }
 
-#audit-panel {
-    width: 1fr;
-    margin-right: 1;
-}
-
-#suricata-panel {
-    width: 1fr;
-}
-
-/* ── shared panel styling ── */
+/* ── shared panel style ── */
 .panel {
     border: round #30363d;
     background: #161b22;
     padding: 1 2;
+    height: 1fr;
 }
 
 .panel-title {
@@ -352,10 +363,12 @@ DataTable > .datatable--cursor {
 /* ── rich log ── */
 RichLog {
     background: #0d1117;
+    border: round #30363d;
     height: 1fr;
+    padding: 0 1;
 }
 
-/* ── footer refresh line ── */
+/* ── status bar ── */
 #status-bar {
     height: 1;
     color: #484f58;
@@ -370,6 +383,9 @@ class HardnDashboard(App[None]):
     TITLE = f"HARDN RELOADED  ·  Security Dashboard  ·  v{VERSION}"
     BINDINGS = [
         Binding("r", "refresh_all", "Refresh"),
+        Binding("1", "switch_tab('tab-overview')",  "Overview",  show=True),
+        Binding("2", "switch_tab('tab-audit')",     "Audit Log", show=True),
+        Binding("3", "switch_tab('tab-suricata')",  "Suricata",  show=True),
         Binding("q", "quit", "Quit"),
     ]
 
@@ -377,53 +393,29 @@ class HardnDashboard(App[None]):
 
     def compose(self) -> ComposeResult:
         yield Header()
-        yield Vertical(
-            # Row 1 — service status (left) + fail2ban bans (right)
-            Horizontal(
-                Vertical(
-                    Static("[b]SERVICE STATUS[/b]", classes="panel-title"),
-                    DataTable(id="svc-table", show_cursor=False),
-                    id="services-panel",
-                    classes="panel",
-                ),
-                Vertical(
-                    Static("[b]FAIL2BAN — ACTIVE BANS[/b]", classes="panel-title"),
-                    Static("Loading…", id="f2b-content"),
-                    id="fail2ban-panel",
-                    classes="panel",
-                ),
-                id="row1",
-            ),
-            # Row 2 — last scan results (full width)
-            Vertical(
-                Static("[b]LAST SCAN RESULTS[/b]", classes="panel-title"),
-                Static("Loading…", id="scans-content"),
-                id="scans-panel",
-                classes="panel",
-            ),
-            # Row 3 — audit events (left) + suricata alerts (right)
-            Horizontal(
-                Vertical(
-                    Static("[b]RECENT AUDIT EVENTS[/b]", classes="panel-title"),
-                    RichLog(id="audit-log", highlight=True, markup=True),
-                    id="audit-panel",
-                    classes="panel",
-                ),
-                Vertical(
-                    Static("[b]SURICATA ALERTS[/b]", classes="panel-title"),
-                    RichLog(id="suricata-log", highlight=True, markup=True),
-                    id="suricata-panel",
-                    classes="panel",
-                ),
-                id="events-row",
-            ),
-            # Status bar
-            Static("", id="status-bar"),
-            id="body",
-        )
+        with Vertical(id="shell"):
+            with TabbedContent(id="tabs"):
+                # ── Tab 1: Overview ──────────────────────────────────────────
+                with TabPane("1 Overview", id="tab-overview"):
+                    with Vertical(id="overview-body"):
+                        with Horizontal(id="row1"):
+                            with Vertical(id="services-panel", classes="panel"):
+                                yield Static("[b]SERVICE STATUS[/b]", classes="panel-title")
+                                yield DataTable(id="svc-table", show_cursor=False)
+                            with Vertical(id="fail2ban-panel", classes="panel"):
+                                yield Static("[b]FAIL2BAN — ACTIVE BANS[/b]", classes="panel-title")
+                                yield Static("Loading…", id="f2b-content")
+                        with Vertical(id="scans-panel", classes="panel"):
+                            yield Static("[b]LAST SCAN RESULTS[/b]", classes="panel-title")
+                            yield Static("Loading…", id="scans-content")
+                # ── Tab 2: Audit Events ──────────────────────────────────────
+                with TabPane("2 Audit Events", id="tab-audit"):
+                    yield RichLog(id="audit-log", highlight=True, markup=True)
+                # ── Tab 3: Suricata Alerts ───────────────────────────────────
+                with TabPane("3 Suricata", id="tab-suricata"):
+                    yield RichLog(id="suricata-log", highlight=True, markup=True)
+            yield Static("", id="status-bar")
         yield Footer()
-
-    # ── Init ──────────────────────────────────────────────────────────────────
 
     def on_mount(self) -> None:
         table = self.query_one("#svc-table", DataTable)
@@ -431,6 +423,11 @@ class HardnDashboard(App[None]):
         table.add_column("Status",  width=12)
         self.action_refresh_all()
         self.set_interval(REFRESH_SECS, self.action_refresh_all)
+
+    # ── Tab switching ─────────────────────────────────────────────────────────
+
+    def action_switch_tab(self, tab_id: str) -> None:
+        self.query_one("#tabs", TabbedContent).active = tab_id
 
     # ── Refresh (background thread — never blocks the UI) ─────────────────────
 
@@ -445,7 +442,7 @@ class HardnDashboard(App[None]):
             self.query_one("#status-bar", Static).update,
             f"Last refresh: {datetime.now().strftime('%H:%M:%S')}  "
             f"· auto-refresh every {REFRESH_SECS}s ·  "
-            "[b]r[/b] refresh  [b]q[/b] quit",
+            "[b]1/2/3[/b] tabs  [b]↑↓[/b] scroll  [b]r[/b] refresh  [b]q[/b] quit",
         )
 
     def _refresh_services(self) -> None:
@@ -476,7 +473,7 @@ class HardnDashboard(App[None]):
             f"[b]ClamAV:[/b]    {fetch_clamav()}\n"
             f"[b]rkhunter:[/b]  {fetch_rkhunter()}\n"
             f"[b]AIDE:[/b]      {fetch_aide()}\n"
-            f"[b]Suricata:[/b]  {fetch_suricata()}"
+            f"[b]Suricata:[/b]  {fetch_suricata_summary()}"
         )
         self.call_from_thread(
             self.query_one("#scans-content", Static).update,

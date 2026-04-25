@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # modules/firejail.sh — Firejail sandboxing + optional SELinux setup
-# Gaming profile: auto-sandboxes Steam and all detected browsers.
-# All profiles: sandboxes browsers if OPT_FIREJAIL_BROWSERS=1.
+# Sandboxes browsers when OPT_FIREJAIL_BROWSERS=1.
+# Steam sandboxing (OPT_FIREJAIL_STEAM) is OFF by default on the gaming profile:
+# native Steam already runs its own sandbox; nesting firejail on top causes conflicts.
 
 setup_firejail() {
     [[ "${OPT_FIREJAIL:-0}" -eq 0 ]] && { STATUS_SKIP "Firejail sandboxing"; return; }
