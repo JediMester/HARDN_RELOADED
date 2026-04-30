@@ -9,12 +9,21 @@ setup_kernel() {
 
     # Compute conditional values before the heredoc — bash treats "0" as a
     # non-empty string so the :+/:- shorthand gives wrong results inside EOF.
-    local kptr_val dmesg_val perf_val bpf_val bpf_jit_val
+    local kptr_val dmesg_val perf_val bpf_val bpf_jit_val fwd_val
     kptr_val=$(   [[ "${OPT_KPTR_RESTRICT:-0}"   -eq 1 ]] && echo 2 || echo 0)
     dmesg_val=$(  [[ "${OPT_DMESG_RESTRICT:-0}"  -eq 1 ]] && echo 1 || echo 0)
     perf_val=$(   [[ "${OPT_PERF_RESTRICT:-0}"   -eq 1 ]] && echo 3 || echo 1)
     bpf_val=$(    [[ "${OPT_BPF_HARDEN:-0}"      -eq 1 ]] && echo 1 || echo 0)
     bpf_jit_val=$([ "${OPT_BPF_HARDEN:-0}"      -eq 1 ]  && echo 2 || echo 0)
+
+    # Keep IP forwarding enabled when Docker is present — containers need it for NAT routing.
+    # Without this, sysctl ip_forward=0 overwrites Docker's runtime setting after every reboot.
+    if command -v docker &>/dev/null; then
+        fwd_val=1
+        STATUS_MSG "Docker detected — ip_forward will be kept enabled (required for container networking)."
+    else
+        fwd_val=0
+    fi
 
     cat > "$sysctl_file" <<EOF
 # HARDN RELOADED — kernel hardening
@@ -62,8 +71,8 @@ net.ipv4.icmp_echo_ignore_broadcasts = 1
 net.ipv4.icmp_ignore_bogus_error_responses = 1
 net.ipv4.tcp_syncookies = 1
 net.ipv4.tcp_rfc1337 = 1
-net.ipv4.ip_forward = 0
-net.ipv4.conf.all.forwarding = 0
+net.ipv4.ip_forward = ${fwd_val}
+net.ipv4.conf.all.forwarding = ${fwd_val}
 EOF
 
     # ── IPv6 ─────────────────────────────────────────────────────────────────
@@ -77,13 +86,13 @@ net.ipv6.conf.lo.disable_ipv6 = 1
 EOF
         STATUS_MSG "IPv6 disabled."
     else
-        cat >> "$sysctl_file" <<'EOF'
+        cat >> "$sysctl_file" <<EOF
 
 # IPv6 hardening (kept enabled per profile)
 net.ipv6.conf.all.accept_redirects = 0
 net.ipv6.conf.default.accept_redirects = 0
 net.ipv6.conf.all.accept_source_route = 0
-net.ipv6.conf.all.forwarding = 0
+net.ipv6.conf.all.forwarding = ${fwd_val}
 EOF
         STATUS_MSG "IPv6 hardened (kept enabled)."
     fi
