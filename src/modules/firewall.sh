@@ -24,10 +24,19 @@ setup_firewall() {
         firewall-cmd --permanent --zone=public --remove-service="$svc" &>/dev/null || true
     done
 
-    # Always allow SSH so we don't lock ourselves out
-    [[ "${FIREWALL_ALLOW_SSH:-1}"   -eq 1 ]] && firewall-cmd --permanent --zone=public --add-service=ssh
-    [[ "${FIREWALL_ALLOW_HTTP:-1}"  -eq 1 ]] && firewall-cmd --permanent --zone=public --add-service=http
-    [[ "${FIREWALL_ALLOW_HTTPS:-1}" -eq 1 ]] && firewall-cmd --permanent --zone=public --add-service=https
+    # SSH: use named service for port 22, explicit port rule for any other port
+    if [[ "${FIREWALL_ALLOW_SSH:-1}" -eq 1 ]]; then
+        local ssh_port="${SSH_PORT:-22}"
+        if [[ "$ssh_port" -eq 22 ]]; then
+            firewall-cmd --permanent --zone=public --add-service=ssh &>/dev/null
+        else
+            firewall-cmd --permanent --zone=public --add-port="${ssh_port}/tcp" &>/dev/null
+            STATUS_MSG "SSH firewall rule: custom port ${ssh_port}/tcp"
+        fi
+    fi
+
+    [[ "${FIREWALL_ALLOW_HTTP:-1}"  -eq 1 ]] && firewall-cmd --permanent --zone=public --add-service=http &>/dev/null
+    [[ "${FIREWALL_ALLOW_HTTPS:-1}" -eq 1 ]] && firewall-cmd --permanent --zone=public --add-service=https &>/dev/null
 
     # ── Steam ports (gaming profile) ─────────────────────────────────────────
     if [[ "${OPT_ALLOW_STEAM_PORTS:-0}" -eq 1 ]]; then

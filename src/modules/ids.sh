@@ -23,16 +23,19 @@ _setup_fail2ban() {
 # Generated $(date -u +"%Y-%m-%dT%H:%M:%SZ") — profile: ${HARDN_PROFILE}
 
 [DEFAULT]
-bantime  = ${FAIL2BAN_BAN_TIME:-1800}
-findtime = 600
-maxretry = ${FAIL2BAN_MAX_RETRY:-5}
+ignoreip  = 127.0.0.1/8 ::1
+bantime   = ${FAIL2BAN_BAN_TIME:-1800}
+findtime  = 600
+maxretry  = ${FAIL2BAN_MAX_RETRY:-5}
 banaction = firewallcmd-ipset
 backend   = systemd
+logencoding = auto
 
 [sshd]
 enabled  = true
-port     = ssh
+port     = ${SSH_PORT:-ssh}
 filter   = sshd
+mode     = aggressive
 maxretry = ${FAIL2BAN_MAX_RETRY:-5}
 EOF
 
