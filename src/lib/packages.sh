@@ -219,15 +219,10 @@ ensure_cron_dir() {
         STATUS_MSG "No /etc/cron.d found — installing cron daemon (${PKG_CRON})."
         install_pkg $PKG_CRON
         mkdir -p /etc/cron.d
-        # Enable the cron service; name varies by distro
-        local svc
-        for svc in cronie cron crond; do
-            if systemctl list-unit-files "${svc}.service" &>/dev/null 2>&1 \
-               && systemctl list-unit-files "${svc}.service" | grep -q "${svc}"; then
-                systemctl enable --now "${svc}.service" 2>/dev/null || true
-                break
-            fi
-        done
+        case "$DISTRO_FAMILY" in
+            arch|rpm) svc_enable cronie ;;
+            debian)   svc_enable cron ;;
+        esac
     else
         mkdir -p /etc/cron.d   # safety net — already exists but make sure
     fi

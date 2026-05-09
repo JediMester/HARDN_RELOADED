@@ -57,7 +57,7 @@ ${log_dir}/hardn.log {
     notifempty
     create 0640 root root
     postrotate
-        systemctl kill --kill-who=main --signal=HUP rsyslog.service 2>/dev/null || true
+        pkill -HUP rsyslog 2>/dev/null || true
     endscript
 }
 EOF
@@ -71,33 +71,35 @@ EOF
         if [[ -f "$sysstat_default" ]]; then
             sed -i 's/ENABLED=.*/ENABLED="true"/' "$sysstat_default"
         fi
-        systemctl enable --now sysstat 2>/dev/null || true
+        svc_enable sysstat
 
         # ── systemd per-service resource accounting ───────────────────────────
-        local systemd_conf="/etc/systemd/system.conf"
-        if [[ -f "$systemd_conf" ]]; then
-            local _sd_changed=0
-            for _setting in DefaultCPUAccounting=yes DefaultMemoryAccounting=yes DefaultTasksAccounting=yes; do
-                local _key="${_setting%%=*}"
-                if grep -q "^${_key}=" "$systemd_conf"; then
-                    sed -i "s/^${_key}=.*/${_setting}/" "$systemd_conf"
-                elif grep -q "^#${_key}=" "$systemd_conf"; then
-                    sed -i "s/^#${_key}=.*/${_setting}/" "$systemd_conf"
-                else
-                    echo "${_setting}" >> "$systemd_conf"
-                fi
-                _sd_changed=1
-            done
-            [[ "$_sd_changed" -eq 1 ]] && systemctl daemon-reexec 2>/dev/null || true
-            STATUS_OK "systemd per-service accounting enabled (CPU, memory, tasks)."
-        else
-            STATUS_WARN "/etc/systemd/system.conf not found — skipping systemd accounting."
+        if [[ "$INIT" == "systemd" ]]; then
+            local systemd_conf="/etc/systemd/system.conf"
+            if [[ -f "$systemd_conf" ]]; then
+                local _sd_changed=0
+                for _setting in DefaultCPUAccounting=yes DefaultMemoryAccounting=yes DefaultTasksAccounting=yes; do
+                    local _key="${_setting%%=*}"
+                    if grep -q "^${_key}=" "$systemd_conf"; then
+                        sed -i "s/^${_key}=.*/${_setting}/" "$systemd_conf"
+                    elif grep -q "^#${_key}=" "$systemd_conf"; then
+                        sed -i "s/^#${_key}=.*/${_setting}/" "$systemd_conf"
+                    else
+                        echo "${_setting}" >> "$systemd_conf"
+                    fi
+                    _sd_changed=1
+                done
+                [[ "$_sd_changed" -eq 1 ]] && systemctl daemon-reexec 2>/dev/null || true
+                STATUS_OK "systemd per-service accounting enabled (CPU, memory, tasks)."
+            else
+                STATUS_WARN "/etc/systemd/system.conf not found — skipping systemd accounting."
+            fi
         fi
 
-        STATUS_OK "Process accounting (sysstat + systemd) enabled."
+        STATUS_OK "Process accounting (sysstat) enabled."
     fi
 
     # Reload rsyslog
-    systemctl restart rsyslog 2>/dev/null || true
+    svc_restart rsyslog
     STATUS_OK "Centralised logging active → ${log_dir}/hardn.log"
 }

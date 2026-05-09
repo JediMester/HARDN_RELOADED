@@ -19,6 +19,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 from datetime import datetime
@@ -58,18 +59,40 @@ def _sh(cmd: list[str], timeout: int = 10) -> str:
     except Exception:
         return ""
 
+# ── Init system detection ─────────────────────────────────────────────────────
+
+def _detect_init() -> str:
+    if shutil.which("systemctl") and Path("/run/systemd/system").exists():
+        return "systemd"
+    if shutil.which("dinitctl"):
+        return "dinit"
+    return "other"
+
+_INIT = _detect_init()
+
 # ── Data collectors ───────────────────────────────────────────────────────────
 
 def _svc_state(name: str) -> tuple[str, str]:
-    s = _sh(["systemctl", "is-active", name])
-    if s == "active":
-        return "● active", "green"
-    if s == "failed":
-        return "✗ failed", "red"
-    if s == "inactive":
-        return "○ inactive", "yellow"
-    if s == "activating":
-        return "◌ starting", "cyan"
+    if _INIT == "systemd":
+        s = _sh(["systemctl", "is-active", name])
+        if s == "active":
+            return "● active", "green"
+        if s == "failed":
+            return "✗ failed", "red"
+        if s == "inactive":
+            return "○ inactive", "yellow"
+        if s == "activating":
+            return "◌ starting", "cyan"
+    elif _INIT == "dinit":
+        s = _sh(["dinitctl", "status", name])
+        if "STARTED" in s:
+            return "● active", "green"
+        if "FAILED" in s:
+            return "✗ failed", "red"
+        if "STARTING" in s or "STOPPING" in s:
+            return "◌ starting", "cyan"
+        if "STOPPED" in s:
+            return "○ inactive", "yellow"
     return "– unknown", "dim"
 
 
@@ -244,14 +267,31 @@ def fetch_dfr_blocked() -> list[str]:
 
 
 def fetch_dfr_events() -> list[str]:
-    """Recent dfr_fwd events from the systemd journal — blocks, unblocks, detections."""
-    out = _sh(
-        ["journalctl", "-u", "dynamic_firewalld_rules",
-         "--no-pager", "-n", "300", "--output", "short"],
-        timeout=10,
-    )
+    """Recent dfr_fwd events — journal on systemd, syslog/hardn.log on dinit."""
+    out = ""
+    if _INIT == "systemd":
+        out = _sh(
+            ["journalctl", "-u", "dynamic_firewalld_rules",
+             "--no-pager", "-n", "300", "--output", "short"],
+            timeout=10,
+        )
+    else:
+        for log_path in [
+            Path("/var/log/hardn/hardn.log"),
+            Path("/var/log/syslog"),
+            Path("/var/log/messages"),
+        ]:
+            if log_path.exists():
+                try:
+                    lines = log_path.read_text(errors="replace").splitlines()
+                    relevant = [l for l in lines
+                                if "dynamic_firewalld_rules" in l or "dfr_fwd" in l]
+                    out = "\n".join(relevant[-300:])
+                    break
+                except Exception:
+                    pass
     if not out:
-        return ["[dim]No journal entries for dynamic_firewalld_rules[/dim]"]
+        return ["[dim]No log entries for dynamic_firewalld_rules[/dim]"]
 
     results: list[str] = []
     for line in out.splitlines():

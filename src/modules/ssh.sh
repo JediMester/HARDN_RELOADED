@@ -127,7 +127,8 @@ setup_ssh() {
 
     # Validate config before restarting — revert on failure
     if sshd -t &>/dev/null; then
-        systemctl restart sshd 2>/dev/null || systemctl restart ssh 2>/dev/null || true
+        local _sshsvc="sshd"; [[ "$DISTRO_FAMILY" == "debian" ]] && _sshsvc="ssh"
+        svc_restart "$_sshsvc"
         STATUS_OK "SSH hardened — port=${SSH_PORT:-22}, root=${SSH_PERMIT_ROOT_LOGIN:-no}, key-only=$([ "${SSH_PASSWORD_AUTH:-no}" = "no" ] && echo yes || echo no), loglevel=${SSH_LOG_LEVEL:-VERBOSE}"
     else
         STATUS_ERR "sshd config validation failed — reverting to backup."

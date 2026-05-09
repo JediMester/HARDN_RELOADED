@@ -59,13 +59,15 @@ EOF
         echo "kernel.core_pattern = /dev/null" >> /etc/sysctl.d/98-hardn-coredump.conf
         sysctl -p /etc/sysctl.d/98-hardn-coredump.conf &>/dev/null
 
-        # systemd coredump
-        mkdir -p /etc/systemd/coredump.conf.d
-        cat > /etc/systemd/coredump.conf.d/hardn.conf <<'EOF'
+        # systemd coredump (systemd-only)
+        if [[ "$INIT" == "systemd" ]]; then
+            mkdir -p /etc/systemd/coredump.conf.d
+            cat > /etc/systemd/coredump.conf.d/hardn.conf <<'EOF'
 [Coredump]
 Storage=none
 ProcessSizeMax=0
 EOF
+        fi
         STATUS_OK "Core dumps disabled."
     fi
 

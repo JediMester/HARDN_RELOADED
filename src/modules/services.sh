@@ -9,10 +9,9 @@ setup_services() {
     # Helper: stop + disable a service (non-fatal if not installed)
     _disable_svc() {
         local svc="$1"
-        if systemctl list-unit-files "${svc}.service" &>/dev/null \
-           && systemctl is-enabled --quiet "${svc}.service" 2>/dev/null; then
-            systemctl disable --now "${svc}.service" 2>/dev/null && \
-                STATUS_MSG "Disabled: ${svc}"
+        if svc_is_enabled "$svc" 2>/dev/null; then
+            svc_disable "$svc"
+            STATUS_MSG "Disabled: ${svc}"
         fi
     }
 

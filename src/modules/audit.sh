@@ -7,7 +7,7 @@ setup_audit() {
 
     install_pkg $PKG_AUDIT
 
-    systemctl enable --now auditd 2>/dev/null || true
+    svc_enable auditd
 
     local rules_file="/etc/audit/rules.d/hardn.rules"
     mkdir -p /etc/audit/rules.d
@@ -138,6 +138,6 @@ EOF
         STATUS_OK "Audit rules loaded via auditctl."
     fi
 
-    systemctl restart auditd 2>/dev/null || true
+    svc_restart auditd
     STATUS_OK "auditd configured → $rules_file"
 }

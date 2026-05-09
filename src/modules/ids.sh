@@ -17,6 +17,8 @@ _setup_fail2ban() {
     install_pkg $PKG_FAIL2BAN
 
     local jail_local="/etc/fail2ban/jail.local"
+    local _fb_backend="auto"
+    [[ "$INIT" == "systemd" ]] && _fb_backend="systemd"
 
     cat > "$jail_local" <<EOF
 # HARDN RELOADED — fail2ban jail.local
@@ -28,7 +30,7 @@ bantime   = ${FAIL2BAN_BAN_TIME:-1800}
 findtime  = 600
 maxretry  = ${FAIL2BAN_MAX_RETRY:-5}
 banaction = firewallcmd-ipset
-backend   = systemd
+backend   = ${_fb_backend}
 logencoding = auto
 
 [sshd]
@@ -46,7 +48,7 @@ EOF
         sed -i 's/^banaction.*/banaction = iptables-multiport/' "$jail_local"
     fi
 
-    systemctl enable --now fail2ban
+    svc_enable fail2ban
     STATUS_OK "fail2ban configured (maxretry=${FAIL2BAN_MAX_RETRY:-5}, bantime=${FAIL2BAN_BAN_TIME:-1800}s)."
 }
 
@@ -87,6 +89,6 @@ _setup_suricata() {
         STATUS_MSG "Suricata rules updated."
     fi
 
-    systemctl enable --now suricata
+    svc_enable suricata
     STATUS_OK "Suricata IDS/IPS enabled on $iface."
 }

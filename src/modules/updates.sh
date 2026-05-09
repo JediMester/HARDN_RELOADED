@@ -17,8 +17,9 @@ setup_updates() {
 _setup_updates_arch() {
     install_pkg $PKG_AUTO_UPDATES   # pacman-contrib (provides checkupdates)
 
-    # systemd timer: check and apply updates nightly at 02:00
-    cat > /etc/systemd/system/hardn-autoupdate.service <<EOF
+    if [[ "$INIT" == "systemd" ]]; then
+        # systemd timer: check and apply updates nightly at 02:00
+        cat > /etc/systemd/system/hardn-autoupdate.service <<EOF
 [Unit]
 Description=HARDN automatic security update
 After=network-online.target
@@ -32,7 +33,7 @@ StandardError=journal
 SyslogIdentifier=hardn-autoupdate
 EOF
 
-    cat > /etc/systemd/system/hardn-autoupdate.timer <<'EOF'
+        cat > /etc/systemd/system/hardn-autoupdate.timer <<'EOF'
 [Unit]
 Description=HARDN automatic update timer
 
@@ -45,16 +46,28 @@ Persistent=true
 WantedBy=timers.target
 EOF
 
-    systemctl daemon-reload
-    systemctl enable --now hardn-autoupdate.timer
-    STATUS_OK "Arch auto-update timer enabled (nightly 02:00 ±30min)."
+        svc_daemon_reload
+        systemctl enable --now hardn-autoupdate.timer
+        STATUS_OK "Arch auto-update timer enabled (nightly 02:00 ±30min)."
 
-    if [[ "${OPT_AUTO_REBOOT:-0}" -eq 1 ]]; then
-        # Append reboot after update
-        sed -i '/ExecStart=.*pacman/a ExecStartPost=/usr/bin/systemctl reboot' \
-            /etc/systemd/system/hardn-autoupdate.service
-        systemctl daemon-reload
-        STATUS_WARN "Auto-reboot enabled — system will reboot after updates."
+        if [[ "${OPT_AUTO_REBOOT:-0}" -eq 1 ]]; then
+            sed -i '/ExecStart=.*pacman/a ExecStartPost=/usr/bin/systemctl reboot' \
+                /etc/systemd/system/hardn-autoupdate.service
+            svc_daemon_reload
+            STATUS_WARN "Auto-reboot enabled — system will reboot after updates."
+        fi
+    else
+        # cron-based fallback for dinit/other init systems
+        ensure_cron_dir
+        local _reboot_cmd=""
+        [[ "${OPT_AUTO_REBOOT:-0}" -eq 1 ]] && _reboot_cmd=" && reboot"
+        cat > /etc/cron.d/hardn-autoupdate <<EOF
+# HARDN: nightly pacman update (random delay up to 30 min)
+0 2 * * * root sleep \$((RANDOM % 1800)) && pacman -Syu --noconfirm${_reboot_cmd} 2>&1 | logger -t hardn-autoupdate
+EOF
+        STATUS_OK "Arch auto-update cron enabled (nightly 02:00 ±30 min)."
+        [[ "${OPT_AUTO_REBOOT:-0}" -eq 1 ]] && \
+            STATUS_WARN "Auto-reboot enabled — system will reboot after updates."
     fi
 }
 
@@ -85,7 +98,7 @@ APT::Periodic::Unattended-Upgrade "1";
 APT::Periodic::AutocleanInterval "7";
 EOF
 
-    systemctl enable --now unattended-upgrades
+    svc_enable unattended-upgrades
     STATUS_OK "unattended-upgrades configured (security-only)."
 }
 
@@ -103,6 +116,10 @@ _setup_updates_rpm() {
         fi
     fi
 
-    systemctl enable --now dnf-automatic-install.timer
+    if [[ "$INIT" == "systemd" ]]; then
+        systemctl enable --now dnf-automatic-install.timer
+    else
+        svc_enable dnf-automatic
+    fi
     STATUS_OK "dnf-automatic configured (security updates)."
 }

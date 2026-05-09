@@ -33,8 +33,8 @@ setup_dns() {
 
     STATUS_MSG "Applying DNS: primary=$primary secondary=$secondary"
 
-    # ── systemd-resolved (preferred on modern systems) ───────────────────────
-    if systemctl is-active --quiet systemd-resolved 2>/dev/null; then
+    # ── systemd-resolved (systemd only — skipped gracefully on dinit/other) ────
+    if svc_is_active systemd-resolved 2>/dev/null; then
         local resolved_conf="/etc/systemd/resolved.conf.d/hardn-dns.conf"
         mkdir -p /etc/systemd/resolved.conf.d
         cat > "$resolved_conf" <<EOF
@@ -44,7 +44,7 @@ FallbackDNS=9.9.9.9 1.1.1.1
 DNSSEC=yes
 DNSOverTLS=opportunistic
 EOF
-        systemctl restart systemd-resolved
+        svc_restart systemd-resolved
         STATUS_OK "systemd-resolved configured with $choice DNS."
         return
     fi
