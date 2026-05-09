@@ -30,11 +30,24 @@ detect_os() {
     fi
 
     INIT="other"
-    systemctl --version &>/dev/null 2>&1 && INIT="systemd"
+    if   systemctl --version &>/dev/null 2>&1; then INIT="systemd"
+    elif dinitctl --version  &>/dev/null 2>&1; then INIT="dinit"
+    elif command -v runit    &>/dev/null;      then INIT="runit"
+    fi
 
     IS_VM=0
-    command -v systemd-detect-virt &>/dev/null \
-        && systemd-detect-virt --vm &>/dev/null && IS_VM=1
+    if command -v systemd-detect-virt &>/dev/null; then
+        systemd-detect-virt --vm &>/dev/null && IS_VM=1
+    else
+        # Fallback: DMI product name + CPU hypervisor flag
+        local _dmi
+        _dmi=$(tr '[:upper:]' '[:lower:]' \
+               < /sys/class/dmi/id/product_name 2>/dev/null || true)
+        case "$_dmi" in
+            *virtualbox*|*vmware*|*kvm*|*qemu*|*bochs*|*xen*) IS_VM=1 ;;
+        esac
+        grep -q "^flags.*hypervisor" /proc/cpuinfo 2>/dev/null && IS_VM=1
+    fi
 
     IS_EFI=0
     [[ -d /sys/firmware/efi ]] && IS_EFI=1
@@ -79,17 +92,21 @@ detect_kernel_features() {
 
 detect_existing_services() {
     DFR_FWD_ACTIVE=0
-    systemctl is-active --quiet dynamic_firewalld_rules.service 2>/dev/null \
-        && DFR_FWD_ACTIVE=1
+    svc_is_active dynamic_firewalld_rules 2>/dev/null && DFR_FWD_ACTIVE=1
 
     DFR_FWD_INSTALLED=0
-    [[ -f /usr/bin/dfr_fwd.py \
-       && -f /etc/systemd/system/dynamic_firewalld_rules.service ]] \
-        && DFR_FWD_INSTALLED=1
+    if [[ -f /usr/bin/dfr_fwd.py ]]; then
+        case "$INIT" in
+            systemd) [[ -f /etc/systemd/system/dynamic_firewalld_rules.service ]] \
+                         && DFR_FWD_INSTALLED=1 ;;
+            dinit)   [[ -f /etc/dinit.d/dynamic_firewalld_rules ]] \
+                         && DFR_FWD_INSTALLED=1 ;;
+            *)       DFR_FWD_INSTALLED=1 ;;
+        esac
+    fi
 
     FIREWALLD_ACTIVE=0
-    systemctl is-active --quiet firewalld.service 2>/dev/null \
-        && FIREWALLD_ACTIVE=1
+    svc_is_active firewalld 2>/dev/null && FIREWALLD_ACTIVE=1
 
     FIREWALLD_INSTALLED=0
     command -v firewall-cmd &>/dev/null && FIREWALLD_INSTALLED=1
@@ -142,7 +159,7 @@ ensure_firewalld() {
     fi
 
     # Enable and start
-    systemctl enable --now firewalld.service
+    svc_enable firewalld
 
     # Sensible defaults: deny all inbound, allow outbound, keep SSH
     firewall-cmd --set-default-zone=public         &>/dev/null
@@ -157,7 +174,7 @@ ensure_firewalld() {
     if [[ "$FIREWALLD_ACTIVE" -eq 1 ]]; then
         echo "  [OK]   firewalld installed and active."
     else
-        echo "  [WARN] firewalld did not start correctly — check journalctl -xe." >&2
+        echo "  [WARN] firewalld did not start correctly — check system logs." >&2
     fi
 }
 
@@ -214,28 +231,15 @@ ensure_dfr_fwd() {
     # Deploy the script
     install -m 0755 -o root -g root "$src_script" /usr/bin/dfr_fwd.py
 
-    # Write the systemd unit (matches the known-good unit from the original setup)
-    cat > /etc/systemd/system/dynamic_firewalld_rules.service <<'UNIT'
-[Unit]
-Description=Dynamic Firewall Rules for TCP/UDP Scans
-After=network.target firewalld.service
-Requires=firewalld.service
-
-[Service]
-ExecStart=/usr/bin/python3 /usr/bin/dfr_fwd.py
-Restart=always
-User=root
-RestartSec=5s
-StandardOutput=journal
-StandardError=journal
-SyslogIdentifier=dynamic_firewalld_rules
-
-[Install]
-WantedBy=multi-user.target
-UNIT
-
-    systemctl daemon-reload
-    systemctl enable --now dynamic_firewalld_rules.service
+    # Write and enable the service unit (init-agnostic via svc_write_unit)
+    svc_write_unit \
+        "dynamic_firewalld_rules" \
+        "Dynamic Firewall Rules for TCP/UDP Scans" \
+        "/usr/bin/python3 /usr/bin/dfr_fwd.py" \
+        "always" \
+        "network.target firewalld" \
+        "process"
+    svc_enable dynamic_firewalld_rules
 
     # Re-detect
     detect_existing_services
@@ -243,7 +247,7 @@ UNIT
     if [[ "$DFR_FWD_ACTIVE" -eq 1 ]]; then
         echo "  [OK]   dynamic_firewalld_rules installed and active."
     else
-        echo "  [WARN] Service did not start — check: journalctl -xe -u dynamic_firewalld_rules" >&2
+        echo "  [WARN] Service did not start — check system logs for: dynamic_firewalld_rules" >&2
     fi
 }
 

@@ -6,7 +6,7 @@
 #   sudo ./hardn.sh --profile gaming   # skip profile menu (server|work|gaming)
 #   sudo ./hardn.sh --profile server --no-confirm   # fully non-interactive
 #
-# Requires: bash 4+, systemd, root privileges.
+# Requires: bash 4+, root privileges. Supports: systemd, dinit.
 
 set -euo pipefail
 
@@ -22,6 +22,8 @@ fi
 # ── Source libraries ─────────────────────────────────────────────────────────
 # shellcheck source=lib/detect.sh
 source "${HARDN_DIR}/lib/detect.sh"
+# shellcheck source=lib/init-compat.sh
+source "${HARDN_DIR}/lib/init-compat.sh"
 # shellcheck source=lib/ui.sh
 source "${HARDN_DIR}/lib/ui.sh"
 # shellcheck source=lib/packages.sh
@@ -199,6 +201,6 @@ echo -e "${_CLR_RESET}"
 
 if [[ "$ARG_NO_CONFIRM" -eq 0 ]]; then
     if ui_yesno "Reboot" "Reboot now to apply all changes?"; then
-        systemctl reboot
+        sys_reboot
     fi
 fi
